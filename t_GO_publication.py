@@ -1,3 +1,4 @@
+# thematicGO; BerezinLab @2025
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,7 +26,9 @@ GENE_FILES: List[str] = [
     "DRG_oxa_271_genes_FC1.5.txt",
 ]
 
+# DRG_oxa_271_genes_FC1.5.txt
 # Bone_marrow_3691_genes_FC_1,5 genes.txt
+
 OUT_DIR = Path("go_theme_outputs")
 CORR_DIR = Path("theme_correlations")
 SUBTERM_DIR = OUT_DIR / "subterm_barplots"
@@ -47,7 +50,7 @@ from typing import Dict, List
 THEMES: Dict[str, Dict[str, object]] = {
 
     "Stress & cytokine response": {
-        "enabled": False,
+        "enabled": True,
         "keywords": [
             "stress", "interferon", "cytokine", "inflammatory", "defense"
         ],
@@ -116,7 +119,7 @@ THEMES: Dict[str, Dict[str, object]] = {
     },
 
     "Neuronal Excitability & Synapse": {
-        "enabled": True,
+        "enabled": False,
         "keywords": [
             "axon", "dendrite", "synapse", "neurotransmitter", "vesicle",
             "action potential", "ion channel", "potassium", "sodium", "calcium",
@@ -124,7 +127,7 @@ THEMES: Dict[str, Dict[str, object]] = {
         ],
     },
 
-    # 🔕 SILENCED THEME
+
     "Neurotrophic Signaling & Growth Factors": {
         "enabled": True,   # ← disables the theme globally
         "keywords": [
@@ -169,7 +172,7 @@ THEMES: Dict[str, Dict[str, object]] = {
     },
 
     "Myelination & Schwann Cell Biology": {
-        "enabled": True,
+        "enabled": False,
         "keywords": [
             "myelin", "schwann cell", "mbp", "mpz", "prx", "pmp22",
             "node of ranvier", "myelination", "myelin sheath",
@@ -180,7 +183,7 @@ THEMES: Dict[str, Dict[str, object]] = {
     },
 
     "Fibrosis": {
-        "enabled": True,
+        "enabled": False,
         "keywords": [
             "fibrosis", "fibrotic", "extracellular matrix",
             "matrix organization", "matrix remodeling",
@@ -191,7 +194,7 @@ THEMES: Dict[str, Dict[str, object]] = {
     },
 
     "Adipose Tissue Development": {
-        "enabled": True,
+        "enabled": False,
         "keywords": [
             "adipose tissue", "adipogenesis", "adipocyte",
             "lipid storage", "lipogenesis",
@@ -200,7 +203,7 @@ THEMES: Dict[str, Dict[str, object]] = {
     },
 
     "Allergy": {
-        "enabled": True,
+        "enabled": False,
         "keywords": [
             "allergy", "allergic", "hypersensitivity",
             "ige", "mast cell", "histamine",
@@ -208,7 +211,7 @@ THEMES: Dict[str, Dict[str, object]] = {
         ],
     },
 "Bone remodeling & osteogenesis": {
-    "enabled": True,
+    "enabled": False,
     "keywords": [
         # Core bone formation / development
         "osteogenesis", "bone formation", "bone development",
@@ -247,7 +250,7 @@ THEMES: Dict[str, Dict[str, object]] = {
     ],
 },
     "Cardiac & Muscle Function": {
-        "enabled": True,
+        "enabled": False,
         "keywords": [
             "heart", "cardiac", "cardiomyocyte",
             "contraction", "sarcomere",
@@ -307,15 +310,22 @@ def enrich(genes: Iterable[str], p_thresh: float = P_THRESH) -> pd.DataFrame:
     return df
 
 
-def assign_themes(term_name: str) -> list[str]:
-    low = term_name.lower()
+def assign_themes(go_term: str) -> list[str]:
     matched = []
+    term = go_term.lower()
+
     for theme, cfg in THEMES.items():
-        if not cfg.get("enabled", True):
-            continue
-        if any(kw in low for kw in cfg["keywords"]):
-            matched.append(theme)
+        for kw in cfg["keywords"]:
+            if kw in term:
+                matched.append(theme)
+                break
+
     return matched
+
+def is_theme_enabled(theme: str) -> bool:
+
+    return THEMES.get(theme, {}).get("enabled", True)
+
 
 
 def aggregate_themes(enr_df: pd.DataFrame) -> pd.DataFrame:
@@ -392,6 +402,82 @@ def plot_theme_bar(themed: pd.DataFrame, title: str, outfile: Path) -> None:
     fig.tight_layout()
     fig.savefig(outfile, dpi=600)
     plt.close(fig)
+
+def plot_theme_bubble(
+    themed: pd.DataFrame,
+    title: str,
+    outfile: Path,
+):
+    """
+    Bubble plot of thematic enrichment.
+    X-axis: cumulative theme score
+    Bubble size: number of GO terms
+    """
+
+    fig, ax = plt.subplots(figsize=(8, max(3, 0.5 * len(themed))), constrained_layout=True)
+
+    y = np.arange(len(themed))
+
+    sizes = themed["Terms"].values
+    scores = themed["Score"].values
+
+    # Scale bubble sizes for visibility
+    size_scaled = 80 + 40 * sizes
+    # Horizontal guidelines for each theme
+    for yi in y:
+        ax.axhline(
+            y=yi,
+            color="lightgray",
+            linestyle=":",
+            linewidth=0.8,
+            zorder=0
+        )
+    ax.scatter(
+        scores,
+        y,
+        s=size_scaled,
+        color="#55A868",
+        alpha=0.75,
+        edgecolor="green",
+        linewidth=0.5,
+    )
+    #color = "#1f77b4"  # classic matplotlib blue
+    #color = "#2E86AB"  # muted scientific blue
+    #color = "#5DA5DA"  # lighter blue
+    #color = "#C44E52"  # muted red
+    #color = "#55A868"  # green
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(themed.index)
+    ax.set_xlabel(r"Cumulative enrichment score (∑ −log$_{10}$(p))")
+    ax.set_title(title, loc="left", weight="bold")
+
+    ax.invert_yaxis()  # highest score on top
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    # Bubble size legend
+    for n in sorted(set(sizes)):
+        ax.scatter([], [],
+                   s=80 + 40 * n,
+                   label=f"{n} terms",
+                   color="#55A868",
+                   alpha=0.75,
+                   edgecolor="green")
+
+    ax.legend(
+        title="Number of GO terms",
+        frameon=False,
+        loc="lower right",
+        bbox_to_anchor=(0.98, 0.2)
+
+    )
+
+    plt.savefig(outfile, dpi=600)
+    plt.close()
+
+    print(f"Theme bubble plot saved → {outfile}")
+
 
 def plot_subterms_bar(enr_df: pd.DataFrame, theme_name: str, prefix: str) -> Optional[Path]:
     """Save a per-theme bar plot of subterms ranked by Score."""
@@ -491,19 +577,27 @@ def run_one_gene_file(path: str | Path) -> None:
     # Aggregate themes ONCE (authoritative theme scores)
     # --------------------------------------------------
     themed = aggregate_themes(enr)
-
+    themed["Enabled"] = themed.index.map(is_theme_enabled)
     tsv_path = save_theme_table(themed, prefix)
     print(f"Theme table saved → {tsv_path}")
 
-    themed_nonzero = themed[themed["Score"] > 0]
+    themed_nonzero = themed[
+        (themed["Score"] > 0)
+        & themed["Enabled"]
+        ]
 
     # --------------------------------------------------
-    # Plot theme summary bar plot
+    # Plot theme summary bar  and bubble plot
     # --------------------------------------------------
     plot_theme_bar(
         themed_nonzero,
         title=f"Thematic processes ({path.name})",
-        outfile=OUT_DIR / f"{prefix}_themes.png",
+        outfile=OUT_DIR / f"{prefix}_themes_bar.png",
+    )
+    plot_theme_bubble(
+        themed_nonzero,
+        title=f"Thematic processes ({path.name})",
+        outfile=OUT_DIR / f"{prefix}_themes_bubble.png",
     )
 
     # --------------------------------------------------
@@ -838,8 +932,10 @@ def plot_theme_overlap_network(
     # Add all themes as nodes
     # --------------------------------------------------
     for theme in overlap_df.index:
-        score = theme_scores.get(theme, 0.0)
-        G.add_node(theme, score=score)
+        if not is_theme_enabled(theme):
+            continue
+        G.add_node(theme, score=theme_scores.get(theme, 0.0))
+
 
     # --------------------------------------------------
     # Add edges (shared genes)
@@ -847,7 +943,12 @@ def plot_theme_overlap_network(
     for i, t1 in enumerate(overlap_df.index):
         for t2 in overlap_df.columns[i + 1:]:
             shared = overlap_df.loc[t1, t2]
-            if shared > 0:
+
+            if (
+                    shared > 0
+                    and is_theme_enabled(t1)
+                    and is_theme_enabled(t2)
+            ):
                 G.add_edge(t1, t2, weight=shared)
 
     # --------------------------------------------------
@@ -869,6 +970,18 @@ def plot_theme_overlap_network(
     # --------------------------------------------------
     edges = list(G.edges(data=True))
     weights = [d["weight"] for _, _, d in edges]
+    # Normalize weights for edge thickness
+    w_min, w_max = min(weights), max(weights)
+    MIN_EDGE_WIDTH = 1
+    MAX_EDGE_WIDTH = 10
+    if w_min == w_max:
+        widths = [2.0 for _ in weights]
+    else:
+        widths = [
+            MIN_EDGE_WIDTH
+            + (w - w_min) / (w_max - w_min) * (MAX_EDGE_WIDTH - MIN_EDGE_WIDTH)
+            for w in weights
+        ]
 
     import matplotlib.cm as cm
     import matplotlib.colors as mcolors
@@ -901,8 +1014,8 @@ def plot_theme_overlap_network(
             ax=ax,
             edgelist=[(u, v) for u, v, _ in edges],
             edge_color=edge_colors,
-            width=1.5,
-            alpha=0.7
+            width=widths,
+            alpha=0.75
         )
 
     labels = {k: wrap_label(k) for k in G.nodes()}
